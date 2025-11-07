@@ -41,10 +41,6 @@
 #define CHANNEL_VALUE_TO_RXFAIL_STEP(channelValue) ((constrain(channelValue, PWM_PULSE_MIN, PWM_PULSE_MAX) - PWM_PULSE_MIN) / 25)
 #define MAX_RXFAIL_RANGE_STEP ((PWM_PULSE_MAX - PWM_PULSE_MIN) / 25)
 
-#define DEFAULT_SERVO_MIN 1000
-#define DEFAULT_SERVO_MIDDLE 1500
-#define DEFAULT_SERVO_MAX 2000
-
 typedef enum {
     RX_FRAME_PENDING = 0,
     RX_FRAME_COMPLETE = (1 << 0),
@@ -54,7 +50,7 @@ typedef enum {
 } rxFrameState_e;
 
 typedef enum {
-    SERIALRX_SPEKTRUM1024 = 0,
+    SERIALRX_NONE = 0,
     SERIALRX_SPEKTRUM2048 = 1,
     SERIALRX_SBUS = 2,
     SERIALRX_SUMD = 3,
@@ -68,7 +64,9 @@ typedef enum {
     SERIALRX_TARGET_CUSTOM = 11,
     SERIALRX_FPORT = 12,
     SERIALRX_SRXL2 = 13,
-    SERIALRX_GHST = 14
+    SERIALRX_GHST = 14,
+    SERIALRX_SPEKTRUM1024 = 15,
+    SERIALRX_MAVLINK = 16,
 } SerialRXType;
 
 #define MAX_SUPPORTED_RC_PPM_CHANNEL_COUNT          12
@@ -136,6 +134,7 @@ typedef enum {
     RX_PROVIDER_SERIAL,
     RX_PROVIDER_MSP,
     RX_PROVIDER_SPI,
+    RX_PROVIDER_UDP,
 } rxProvider_t;
 
 typedef struct rxRuntimeState_s {
@@ -145,7 +144,6 @@ typedef struct rxRuntimeState_s {
     rcReadRawDataFnPtr  rcReadRawFn;
     rcFrameStatusFnPtr  rcFrameStatusFn;
     rcProcessFrameFnPtr rcProcessFrameFn;
-    rcGetFrameTimeUsFn *rcFrameTimeUsFn;
     uint16_t            *channelData;
     void                *frameData;
     timeUs_t            lastRcFrameTimeUs;
@@ -159,6 +157,7 @@ typedef enum {
     RSSI_SOURCE_MSP,
     RSSI_SOURCE_FRAME_ERRORS,
     RSSI_SOURCE_RX_PROTOCOL_CRSF,
+    RSSI_SOURCE_RX_PROTOCOL_MAVLINK,
 } rssiSource_e;
 
 extern rssiSource_e rssiSource;
@@ -167,6 +166,7 @@ typedef enum {
     LQ_SOURCE_NONE = 0,
     LQ_SOURCE_RX_PROTOCOL_CRSF,
     LQ_SOURCE_RX_PROTOCOL_GHST,
+    LQ_SOURCE_RX_PROTOCOL_MAVLINK,
 } linkQualitySource_e;
 
 extern linkQualitySource_e linkQualitySource;
@@ -177,7 +177,7 @@ void rxInit(void);
 void rxProcessPending(bool state);
 bool rxUpdateCheck(timeUs_t currentTimeUs, timeDelta_t currentDeltaTimeUs);
 void rxFrameCheck(timeUs_t currentTimeUs, timeDelta_t currentDeltaTimeUs);
-bool rxIsReceivingSignal(void);
+bool isRxReceivingSignal(void);
 bool rxAreFlightChannelsValid(void);
 bool calculateRxChannelsAndUpdateFailsafe(timeUs_t currentTimeUs);
 
@@ -205,6 +205,8 @@ uint16_t rxGetLinkQualityPercent(void);
 int16_t getRssiDbm(void);
 void setRssiDbm(int16_t newRssiDbm, rssiSource_e source);
 void setRssiDbmDirect(int16_t newRssiDbm, rssiSource_e source);
+int8_t getActiveAntenna(void);
+void setActiveAntenna(int8_t antenna);
 #endif //USE_RX_RSSI_DBM
 
 #ifdef USE_RX_RSNR
@@ -224,6 +226,6 @@ void resetAllRxChannelRangeConfigurations(rxChannelRangeConfig_t *rxChannelRange
 void suspendRxSignal(void);
 void resumeRxSignal(void);
 
-timeDelta_t rxGetFrameDelta(timeDelta_t *frameAgeUs);
+timeDelta_t rxGetFrameDelta(void);
 
 timeUs_t rxFrameTimeUs(void);

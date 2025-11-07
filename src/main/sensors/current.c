@@ -90,19 +90,19 @@ void currentMeterReset(currentMeter_t *meter)
 
 static pt1Filter_t adciBatFilter;
 
-#ifndef CURRENT_METER_SCALE_DEFAULT
-#define CURRENT_METER_SCALE_DEFAULT 400 // for Allegro ACS758LCB-100U (40mV/A)
+#ifndef DEFAULT_CURRENT_METER_SCALE
+#define DEFAULT_CURRENT_METER_SCALE 400 // for Allegro ACS758LCB-100U (40mV/A)
 #endif
 
-#ifndef CURRENT_METER_OFFSET_DEFAULT
-#define CURRENT_METER_OFFSET_DEFAULT 0
+#ifndef DEFAULT_CURRENT_METER_OFFSET
+#define DEFAULT_CURRENT_METER_OFFSET 0
 #endif
 
 PG_REGISTER_WITH_RESET_TEMPLATE(currentSensorADCConfig_t, currentSensorADCConfig, PG_CURRENT_SENSOR_ADC_CONFIG, 0);
 
 PG_RESET_TEMPLATE(currentSensorADCConfig_t, currentSensorADCConfig,
-    .scale = CURRENT_METER_SCALE_DEFAULT,
-    .offset = CURRENT_METER_OFFSET_DEFAULT,
+    .scale = DEFAULT_CURRENT_METER_SCALE,
+    .offset = DEFAULT_CURRENT_METER_OFFSET,
 );
 
 #ifdef USE_VIRTUAL_CURRENT_METER
@@ -147,7 +147,7 @@ void currentMeterADCInit(void)
 void currentMeterADCRefresh(int32_t lastUpdateAt)
 {
 #ifdef USE_ADC
-    const uint16_t iBatSample = adcGetChannel(ADC_CURRENT);
+    const uint16_t iBatSample = adcGetValue(ADC_CURRENT);
     currentMeterADCState.amperageLatest = currentMeterADCToCentiamps(iBatSample);
     currentMeterADCState.amperage = currentMeterADCToCentiamps(pt1FilterApply(&adciBatFilter, iBatSample));
 
@@ -250,7 +250,6 @@ void currentMeterESCReadMotor(uint8_t motorNumber, currentMeter_t *meter)
     }
 }
 #endif
-
 
 #ifdef USE_MSP_CURRENT_METER
 #include "common/streambuf.h"

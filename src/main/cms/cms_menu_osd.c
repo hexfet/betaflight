@@ -143,6 +143,7 @@ const OSD_Entry menuOsdActiveElemsEntries[] =
     {"OSD PROFILE NAME",   OME_VISIBLE | DYNAMIC, NULL, &osdConfig_item_pos[OSD_PROFILE_NAME]},
 #endif
     {"DEBUG",              OME_VISIBLE | DYNAMIC, NULL, &osdConfig_item_pos[OSD_DEBUG]},
+    {"DEBUG2",             OME_VISIBLE | DYNAMIC, NULL, &osdConfig_item_pos[OSD_DEBUG2]},
     {"WARNINGS",           OME_VISIBLE | DYNAMIC, NULL, &osdConfig_item_pos[OSD_WARNINGS]},
     {"DISARMED",           OME_VISIBLE | DYNAMIC, NULL, &osdConfig_item_pos[OSD_DISARMED]},
     {"PIT ANG",            OME_VISIBLE | DYNAMIC, NULL, &osdConfig_item_pos[OSD_PITCH_ANGLE]},
@@ -164,11 +165,19 @@ const OSD_Entry menuOsdActiveElemsEntries[] =
     {"STICK OVERLAY LEFT", OME_VISIBLE | DYNAMIC, NULL, &osdConfig_item_pos[OSD_STICK_OVERLAY_LEFT]},
     {"STICK OVERLAY RIGHT",OME_VISIBLE | DYNAMIC, NULL, &osdConfig_item_pos[OSD_STICK_OVERLAY_RIGHT]},
 #endif
+#ifdef USE_GPS_LAP_TIMER
+    {"LAP TIME CURRENT",   OME_VISIBLE | DYNAMIC, NULL, &osdConfig_item_pos[OSD_GPS_LAP_TIME_CURRENT]},
+    {"LAP TIME PREVIOUS",  OME_VISIBLE | DYNAMIC, NULL, &osdConfig_item_pos[OSD_GPS_LAP_TIME_PREVIOUS]},
+    {"LAP TIME BEST 3",    OME_VISIBLE | DYNAMIC, NULL, &osdConfig_item_pos[OSD_GPS_LAP_TIME_BEST3]},
+#endif // USE_GPS_LAP_TIMER
     {"PILOT NAME",         OME_VISIBLE | DYNAMIC, NULL, &osdConfig_item_pos[OSD_PILOT_NAME]},
     {"RC CHANNELS",        OME_VISIBLE | DYNAMIC, NULL, &osdConfig_item_pos[OSD_RC_CHANNELS]},
     {"CAMERA FRAME",       OME_VISIBLE | DYNAMIC, NULL, &osdConfig_item_pos[OSD_CAMERA_FRAME]},
     {"TOTAL FLIGHTS",      OME_VISIBLE | DYNAMIC, NULL, &osdConfig_item_pos[OSD_TOTAL_FLIGHTS]},
     {"AUX VALUE",          OME_VISIBLE | DYNAMIC, NULL, &osdConfig_item_pos[OSD_AUX_VALUE]},
+#ifdef USE_RANGEFINDER
+    {"LIDAR DIST",         OME_VISIBLE | DYNAMIC, NULL, &osdConfig_item_pos[OSD_LIDAR_DIST]},
+#endif
     {"BACK",               OME_Back,    NULL, NULL},
     {NULL,                 OME_END,     NULL, NULL}
 };

@@ -42,6 +42,7 @@ typedef enum {
     BUS_ABORT
 } busStatus_e;
 
+struct extDevice_s;
 
 // Bus interface, independent of connected device
 typedef struct busDevice_s {
@@ -53,7 +54,7 @@ typedef struct busDevice_s {
             bool leadingEdge;
         } spi;
         struct busI2C_s {
-            I2CDevice device;
+            i2cDevice_e device;
         } i2c;
         struct busMpuSlave_s {
             struct extDevice_s *master;
@@ -61,18 +62,18 @@ typedef struct busDevice_s {
     } busType_u;
     bool useDMA;
     uint8_t deviceCount;
+#ifdef USE_DMA
     dmaChannelDescriptor_t *dmaTx;
     dmaChannelDescriptor_t *dmaRx;
-#ifndef UNIT_TEST
     // Use a reference here as this saves RAM for unused descriptors
 #if defined(USE_FULL_LL_DRIVER)
-    LL_DMA_InitTypeDef          *initTx;
-    LL_DMA_InitTypeDef          *initRx;
+    LL_DMA_InitTypeDef          *dmaInitTx;
+    LL_DMA_InitTypeDef          *dmaInitRx;
 #else
-    DMA_InitTypeDef             *initTx;
-    DMA_InitTypeDef             *initRx;
+    DMA_InitTypeDef             *dmaInitTx;
+    DMA_InitTypeDef             *dmaInitRx;
 #endif
-#endif // UNIT_TEST
+#endif // USE_DMA
     volatile struct busSegment_s* volatile curSegment;
     bool initSegment;
 } busDevice_t;
@@ -93,22 +94,22 @@ typedef struct extDevice_s {
             uint8_t address;
         } mpuSlave;
     } busType_u;
-#ifndef UNIT_TEST
+#ifdef USE_DMA
     // Cache the init structure for the next DMA transfer to reduce inter-segment delay
 #if defined(USE_FULL_LL_DRIVER)
-    LL_DMA_InitTypeDef          initTx;
-    LL_DMA_InitTypeDef          initRx;
+    LL_DMA_InitTypeDef          dmaInitTx;
+    LL_DMA_InitTypeDef          dmaInitRx;
 #else
-    DMA_InitTypeDef             initTx;
-    DMA_InitTypeDef             initRx;
+    DMA_InitTypeDef             dmaInitTx;
+    DMA_InitTypeDef             dmaInitRx;
 #endif
-#endif // UNIT_TEST
+#endif // USE_DMA
     // Support disabling DMA on a per device basis
     bool useDMA;
     // Per device buffer reference if needed
     uint8_t *txBuf, *rxBuf;
     // Connected devices on the same bus may support different speeds
-    uint32_t callbackArg;
+    uintptr_t callbackArg;
 } extDevice_t;
 
 /* Each SPI access may comprise multiple parts, for example, wait/write enable/write/data each of which
@@ -134,7 +135,7 @@ typedef struct busSegment_s {
     } u;
     int len;
     bool negateCS; // Should CS be negated at the end of this segment
-    busStatus_e (*callback)(uint32_t arg);
+    busStatus_e (*callback)(uintptr_t arg);
 } busSegment_t;
 
 #ifdef TARGET_BUS_INIT

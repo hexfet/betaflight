@@ -25,10 +25,23 @@
 #ifndef DEFAULT_FEATURES
 #define DEFAULT_FEATURES 0
 #endif
+
 #ifndef DEFAULT_RX_FEATURE
+
+#if defined(USE_SERIALRX)
 #define DEFAULT_RX_FEATURE FEATURE_RX_SERIAL
+#elif defined(USE_RX_MSP)
+#define DEFAULT_RX_FEATURE FEATURE_RX_MSP
+#elif defined(USE_RX_SPI)
+// need to test with FEATURE_RX_EXPRESSLRS
+#define DEFAULT_RX_FEATURE FEATURE_RX_SPI
 #endif
 
+#endif // DEFAULT_RX_FEATURE
+
+// features must be listed in
+//  config/feature.c:featuresSupportedByBuild
+//  cli/cli.c:featureNames
 typedef enum {
     FEATURE_RX_PPM = 1 << 0,
     FEATURE_INFLIGHT_ACC_CAL = 1 << 2,
@@ -37,6 +50,7 @@ typedef enum {
     FEATURE_SERVO_TILT = 1 << 5,
     FEATURE_SOFTSERIAL = 1 << 6,
     FEATURE_GPS = 1 << 7,
+    FEATURE_OPTICALFLOW = 1 << 8,
     FEATURE_RANGEFINDER = 1 << 9,
     FEATURE_TELEMETRY = 1 << 10,
     FEATURE_3D = 1 << 12,
@@ -61,6 +75,10 @@ typedef struct featureConfig_s {
 } featureConfig_t;
 
 PG_DECLARE(featureConfig_t, featureConfig);
+
+// Mask of features that have code compiled in with current config.
+//  Other restrictions on available features may apply.
+extern uint32_t featuresSupportedByBuild;
 
 void featureInit(void);
 bool featureIsEnabled(const uint32_t mask);

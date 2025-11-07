@@ -55,7 +55,6 @@
 
 #include "rx/rx.h"
 
-
 PG_REGISTER_WITH_RESET_FN(servoConfig_t, servoConfig, PG_SERVO_CONFIG, 0);
 
 void pgResetFn_servoConfig(servoConfig_t *servoConfig)
@@ -66,9 +65,30 @@ void pgResetFn_servoConfig(servoConfig_t *servoConfig)
     servoConfig->servo_lowpass_freq = 0;
     servoConfig->channelForwardingStartChannel = AUX1;
 
-    for (unsigned servoIndex = 0; servoIndex < MAX_SUPPORTED_SERVOS; servoIndex++) {
-        servoConfig->dev.ioTags[servoIndex] = timerioTagGetByUsage(TIM_USE_SERVO, servoIndex);
-    }
+#ifdef SERVO1_PIN
+    servoConfig->dev.ioTags[0] = IO_TAG(SERVO1_PIN);
+#endif
+#ifdef SERVO2_PIN
+    servoConfig->dev.ioTags[1] = IO_TAG(SERVO2_PIN);
+#endif
+#ifdef SERVO3_PIN
+    servoConfig->dev.ioTags[2] = IO_TAG(SERVO3_PIN);
+#endif
+#ifdef SERVO4_PIN
+    servoConfig->dev.ioTags[3] = IO_TAG(SERVO4_PIN);
+#endif
+#ifdef SERVO5_PIN
+    servoConfig->dev.ioTags[4] = IO_TAG(SERVO5_PIN);
+#endif
+#ifdef SERVO6_PIN
+    servoConfig->dev.ioTags[5] = IO_TAG(SERVO6_PIN);
+#endif
+#ifdef SERVO7_PIN
+    servoConfig->dev.ioTags[6] = IO_TAG(SERVO7_PIN);
+#endif
+#ifdef SERVO8_PIN
+    servoConfig->dev.ioTags[7] = IO_TAG(SERVO8_PIN);
+#endif
 }
 
 PG_REGISTER_ARRAY(servoMixer_t, MAX_SERVO_RULES, customServoMixers, PG_SERVO_MIXER, 0);
@@ -96,7 +116,6 @@ int16_t servo[MAX_SUPPORTED_SERVOS];
 static uint8_t servoRuleCount = 0;
 static servoMixer_t currentServoMixer[MAX_SERVO_RULES];
 static int useServo;
-
 
 #define COUNT_SERVO_RULES(rules) (sizeof(rules) / sizeof(servoMixer_t))
 // mixer rule format servo, input, rate, speed, min, max, box
@@ -197,12 +216,12 @@ const mixerRules_t servoMixers[] = {
     { 0, NULL },
 };
 
-int16_t determineServoMiddleOrForwardFromChannel(servoIndex_e servoIndex)
+static int16_t determineServoMiddleOrForwardFromChannel(servoIndex_e servoIndex)
 {
     const uint8_t channelToForwardFrom = servoParams(servoIndex)->forwardFromChannel;
 
     if (channelToForwardFrom != CHANNEL_FORWARDING_DISABLED && channelToForwardFrom < rxRuntimeState.channelCount) {
-        return rcData[channelToForwardFrom];
+        return scaleRangef(constrainf(rcData[channelToForwardFrom], PWM_RANGE_MIN, PWM_RANGE_MAX), PWM_RANGE_MIN, PWM_RANGE_MAX, servoParams(servoIndex)->min, servoParams(servoIndex)->max);
     }
 
     return servoParams(servoIndex)->middle;
@@ -254,7 +273,6 @@ static void servoConfigureOutput(void)
         break;
     }
 }
-
 
 void servosInit(void)
 {
@@ -475,7 +493,6 @@ void servoMixer(void)
         servo[i] += determineServoMiddleOrForwardFromChannel(i);
     }
 }
-
 
 static void servoTable(void)
 {

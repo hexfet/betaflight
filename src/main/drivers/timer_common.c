@@ -28,8 +28,7 @@
 
 #ifdef USE_TIMER_MGMT
 #include "pg/timerio.h"
-
-const resourceOwner_t freeOwner = { .owner = OWNER_FREE, .resourceIndex = 0 };
+#include "drivers/resource.h"
 
 static resourceOwner_t timerOwners[MAX_TIMER_PINMAP_COUNT];
 
@@ -106,7 +105,7 @@ const resourceOwner_t *timerGetOwner(const timerHardware_t *timer)
 #if defined(USE_DSHOT_BITBANG)
     return dshotBitbangTimerGetOwner(timer);
 #else
-    return &freeOwner;
+    return &resourceOwnerFree;
 #endif
 }
 
@@ -125,7 +124,7 @@ const timerHardware_t *timerAllocate(ioTag_t ioTag, resourceOwner_e owner, uint8
             }
 
             timerOwners[i].owner = owner;
-            timerOwners[i].resourceIndex = resourceIndex;
+            timerOwners[i].index = resourceIndex;
 
             return timer;
         }
@@ -158,22 +157,4 @@ const timerHardware_t *timerAllocate(ioTag_t ioTag, resourceOwner_e owner, uint8
 }
 #endif
 
-ioTag_t timerioTagGetByUsage(timerUsageFlag_e usageFlag, uint8_t index)
-{
-#if USABLE_TIMER_CHANNEL_COUNT > 0
-    uint8_t currentIndex = 0;
-    for (unsigned i = 0; i < USABLE_TIMER_CHANNEL_COUNT; i++) {
-        if ((timerHardware[i].usageFlags & usageFlag) == usageFlag) {
-            if (currentIndex == index) {
-                return timerHardware[i].tag;
-            }
-            currentIndex++;
-        }
-    }
-#else
-    UNUSED(usageFlag);
-    UNUSED(index);
-#endif
-    return IO_TAG_NONE;
-}
 #endif

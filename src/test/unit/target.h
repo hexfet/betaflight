@@ -26,12 +26,14 @@
 #define USE_ACC
 #define USE_CMS
 #define CMS_MAX_DEVICE 4
-#define USE_FAKE_GYRO
+#define USE_VIRTUAL_GYRO
 #define USE_BEEPER
 #define USE_BLACKBOX
 #define USE_MAG
 #define USE_BARO
 #define USE_GPS
+#define USE_GPS_NMEA
+#define USE_GPS_UBLOX
 #define USE_DASHBOARD
 #define USE_SERIALRX
 #define USE_RX_MSP
@@ -56,27 +58,19 @@
 #define USE_LED_STRIP_STATUS_MODE
 #define USE_SERVOS
 #define USE_TRANSPONDER
+#define USE_VIRTUAL_LED
 #define USE_VCP
 #define USE_UART1
 #define USE_UART2
 #define USE_UART3
 #define USE_UART4
 #define USE_UART5
-#define USE_SOFTSERIAL1
-#define USE_SOFTSERIAL2
-
-#define SERIAL_PORT_COUNT 8
+#define USE_SOFTSERIAL
 
 #define DEFAULT_AUX_CHANNEL_COUNT       MAX_AUX_CHANNEL_COUNT
 #define MAX_SIMULTANEOUS_ADJUSTMENT_COUNT 6  // needed for unittest
 
 #define TARGET_BOARD_IDENTIFIER "TEST"
-
-#define DEFAULT_BLACKBOX_DEVICE     BLACKBOX_DEVICE_SERIAL
-
-#define LED_STRIP_TIMER 1
-#define SOFTSERIAL_1_TIMER 2
-#define SOFTSERIAL_2_TIMER 3
 
 #define USABLE_TIMER_CHANNEL_COUNT 0
 
@@ -84,3 +78,4 @@
 #define TARGET_IO_PORTB         0xffff
 #define TARGET_IO_PORTC         0xffff
 
+#include "target/serial_post.h"

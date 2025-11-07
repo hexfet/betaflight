@@ -46,7 +46,6 @@
 
 #include "pg/motor.h"
 
-
 typedef enum {
     BAUDRATE_NORMAL = 19200,
     BAUDRATE_SIMONK = 28800, // = 9600 * 3
@@ -111,7 +110,7 @@ typedef struct {
 
 escOutputs_t escOutputs[MAX_SUPPORTED_MOTORS];
 
-extern timerHardware_t* serialTimerHardware;
+//extern timerHardware_t* serialTimerHardware;
 
 const struct serialPortVTable escSerialVTable[];
 
@@ -119,12 +118,12 @@ escSerial_t escSerialPorts[MAX_ESCSERIAL_PORTS];
 
 PG_REGISTER_WITH_RESET_TEMPLATE(escSerialConfig_t, escSerialConfig, PG_ESCSERIAL_CONFIG, 0);
 
-#ifndef ESCSERIAL_TIMER_TX_PIN
-#define ESCSERIAL_TIMER_TX_PIN NONE
+#ifndef ESCSERIAL_PIN
+#define ESCSERIAL_PIN NONE
 #endif
 
 PG_RESET_TEMPLATE(escSerialConfig_t, escSerialConfig,
-    .ioTag = IO_TAG(ESCSERIAL_TIMER_TX_PIN),
+    .ioTag = IO_TAG(ESCSERIAL_PIN),
 );
 
 enum {
@@ -134,14 +133,6 @@ enum {
 
 #define STOP_BIT_MASK (1 << 0)
 #define START_BIT_MASK (1 << (RX_TOTAL_BITS - 1))
-
-// XXX No TIM_DeInit equivalent in HAL driver???
-#ifdef USE_HAL_DRIVER
-static void TIM_DeInit(TIM_TypeDef *tim)
-{
-    UNUSED(tim);
-}
-#endif
 
 static void setTxSignalEsc(escSerial_t *escSerial, uint8_t state)
 {
@@ -183,20 +174,15 @@ static void escSerialGPIOConfig(const timerHardware_t *timhw, ioConfig_t cfg)
     }
 
     IOInit(IOGetByTag(tag), OWNER_MOTOR, 0);
-#ifdef STM32F7
     IOConfigGPIOAF(IOGetByTag(tag), cfg, timhw->alternateFunction);
-#else
-    IOConfigGPIO(IOGetByTag(tag), cfg);
-#endif
 }
 
 static void escSerialInputPortConfig(const timerHardware_t *timerHardwarePtr)
 {
     escSerialGPIOConfig(timerHardwarePtr, IOCFG_AF_PP_UP);
     timerChClearCCFlag(timerHardwarePtr);
-    timerChITConfig(timerHardwarePtr,ENABLE);
+    timerChITConfig(timerHardwarePtr, ENABLE);
 }
-
 
 static bool isTimerPeriodTooLarge(uint32_t timerPeriod)
 {
@@ -212,7 +198,7 @@ static bool isEscSerialTransmitBufferEmpty(const serialPort_t *instance)
 static void escSerialOutputPortConfig(const timerHardware_t *timerHardwarePtr)
 {
     escSerialGPIOConfig(timerHardwarePtr, IOCFG_OUT_PP);
-    timerChITConfig(timerHardwarePtr,DISABLE);
+    timerChITConfig(timerHardwarePtr, DISABLE);
 }
 
 static void processTxStateBL(escSerial_t *escSerial)
@@ -239,7 +225,6 @@ static void processTxStateBL(escSerial_t *escSerial)
         escSerial->internalTxBuffer = (1 << (TX_TOTAL_BITS - 1)) | (byteToSend << 1);
         escSerial->bitsLeftToTransmit = TX_TOTAL_BITS;
         escSerial->isTransmittingData = true;
-
 
         //set output
         if (escSerial->mode==PROTOCOL_BLHELI || escSerial->mode==PROTOCOL_CASTLE) {
@@ -347,11 +332,11 @@ static void onSerialTimerBL(timerCCHandlerRec_t *cbRec, captureCompare_t capture
     processRxStateBL(escSerial);
 }
 
-static void serialTimerTxConfigBL(const timerHardware_t *timerHardwarePtr, uint8_t reference, uint32_t baud)
+static void serialTimerTxConfigBL(const timerHardware_t *timerHardwarePtr, uint8_t portIndex, uint32_t baud)
 {
     uint32_t clock = SystemCoreClock/2;
     uint32_t timerPeriod;
-    TIM_DeInit(timerHardwarePtr->tim);
+    timerReset(timerHardwarePtr->tim);
     do {
         timerPeriod = clock / baud;
         if (isTimerPeriodTooLarge(timerPeriod)) {
@@ -364,9 +349,10 @@ static void serialTimerTxConfigBL(const timerHardware_t *timerHardwarePtr, uint8
         }
     } while (isTimerPeriodTooLarge(timerPeriod));
 
-    timerConfigure(timerHardwarePtr, timerPeriod, clock);
-    timerChCCHandlerInit(&escSerialPorts[reference].timerCb, onSerialTimerBL);
-    timerChConfigCallbacks(timerHardwarePtr, &escSerialPorts[reference].timerCb, NULL);
+    timerReconfigureTimeBase(timerHardwarePtr->tim, timerPeriod, clock);
+    timerChCCHandlerInit(&escSerialPorts[portIndex].timerCb, onSerialTimerBL);
+    timerChConfigCallbacks(timerHardwarePtr, &escSerialPorts[portIndex].timerCb, NULL);
+    timerStart(timerHardwarePtr->tim);
 }
 
 static void onSerialRxPinChangeBL(timerCCHandlerRec_t *cbRec, captureCompare_t capture)
@@ -384,11 +370,8 @@ static void onSerialRxPinChangeBL(timerCCHandlerRec_t *cbRec, captureCompare_t c
         // Adjust the timing so it will interrupt on the middle.
         // This is clobbers transmission, but it is okay because we are
         // always half-duplex.
-#ifdef USE_HAL_DRIVER
-        __HAL_TIM_SetCounter(escSerial->txTimerHandle, __HAL_TIM_GetAutoreload(escSerial->txTimerHandle) / 2);
-#else
-        TIM_SetCounter(escSerial->txTimerHardware->tim, escSerial->txTimerHardware->tim->ARR / 2);
-#endif
+        timerSetCounter(escSerial->txTimerHardware->tim, timerGetPeriod(escSerial->txTimerHardware->tim) / 2);
+
         if (escSerial->isTransmittingData) {
             escSerial->transmissionErrors++;
         }
@@ -421,11 +404,12 @@ static void onSerialRxPinChangeBL(timerCCHandlerRec_t *cbRec, captureCompare_t c
 static void serialTimerRxConfigBL(const timerHardware_t *timerHardwarePtr, uint8_t reference, portOptions_e options)
 {
     // start bit is usually a FALLING signal
-    TIM_DeInit(timerHardwarePtr->tim);
-    timerConfigure(timerHardwarePtr, 0xFFFF, SystemCoreClock / 2);
+    timerReset(timerHardwarePtr->tim);
+    timerReconfigureTimeBase(timerHardwarePtr->tim, 0xFFFF, SystemCoreClock / 2);
     timerChConfigIC(timerHardwarePtr, (options & SERIAL_INVERTED) ? ICPOLARITY_RISING : ICPOLARITY_FALLING, 0);
     timerChCCHandlerInit(&escSerialPorts[reference].edgeCb, onSerialRxPinChangeBL);
     timerChConfigCallbacks(timerHardwarePtr, &escSerialPorts[reference].edgeCb, NULL);
+    timerStart(timerHardwarePtr->tim);
 }
 
 #ifdef USE_ESCSERIAL_SIMONK
@@ -467,7 +451,6 @@ reload:
                 escSerial->port.txBufferTail = 0;
             }
         }
-
 
         // build internal buffer, data bits (MSB to LSB)
         escSerial->internalTxBuffer = byteToSend;
@@ -545,10 +528,11 @@ static void onSerialTimerEsc(timerCCHandlerRec_t *cbRec, captureCompare_t captur
 static void escSerialTimerTxConfig(const timerHardware_t *timerHardwarePtr, uint8_t reference)
 {
     uint32_t timerPeriod = 34;
-    TIM_DeInit(timerHardwarePtr->tim);
-    timerConfigure(timerHardwarePtr, timerPeriod, MHZ_TO_HZ(1));
+    timerReset(timerHardwarePtr->tim);
+    timerReconfigureTimeBase(timerHardwarePtr->tim, timerPeriod, MHZ_TO_HZ(1));
     timerChCCHandlerInit(&escSerialPorts[reference].timerCb, onSerialTimerEsc);
     timerChConfigCallbacks(timerHardwarePtr, &escSerialPorts[reference].timerCb, NULL);
+    timerStart(timerHardwarePtr->tim);
 }
 
 static void extractAndStoreRxByteEsc(escSerial_t *escSerial)
@@ -576,12 +560,7 @@ static void onSerialRxPinChangeEsc(timerCCHandlerRec_t *cbRec, captureCompare_t 
 
     escSerial_t *escSerial = container_of(cbRec, escSerial_t, edgeCb);
 
-    //clear timer
-#ifdef USE_HAL_DRIVER
-    __HAL_TIM_SetCounter(escSerial->rxTimerHandle, 0);
-#else
-    TIM_SetCounter(escSerial->rxTimerHardware->tim,0);
-#endif
+    timerSetCounter(escSerial->rxTimerHardware->tim, 0);
 
     if (capture > 40 && capture < 90)
     {
@@ -634,11 +613,12 @@ static void onSerialRxPinChangeEsc(timerCCHandlerRec_t *cbRec, captureCompare_t 
 static void escSerialTimerRxConfig(const timerHardware_t *timerHardwarePtr, uint8_t reference)
 {
     // start bit is usually a FALLING signal
-    TIM_DeInit(timerHardwarePtr->tim);
-    timerConfigure(timerHardwarePtr, 0xFFFF, MHZ_TO_HZ(1));
+    timerReset(timerHardwarePtr->tim);
+    timerReconfigureTimeBase(timerHardwarePtr->tim, 0xFFFF, MHZ_TO_HZ(1));
     timerChConfigIC(timerHardwarePtr, ICPOLARITY_FALLING, 0);
     timerChCCHandlerInit(&escSerialPorts[reference].edgeCb, onSerialRxPinChangeEsc);
     timerChConfigCallbacks(timerHardwarePtr, &escSerialPorts[reference].edgeCb, NULL);
+    timerStart(timerHardwarePtr->tim);
 }
 #endif
 
@@ -659,10 +639,12 @@ static serialPort_t *openEscSerial(const motorDevConfig_t *motorConfig, escSeria
 {
     escSerial_t *escSerial = &(escSerialPorts[portIndex]);
 
-    if (escSerialConfig()->ioTag == IO_TAG_NONE) {
-        return NULL;
-    }
     if (mode != PROTOCOL_KISSALL) {
+
+    	if (escSerialConfig()->ioTag == IO_TAG_NONE) {
+    	    return NULL;
+    	}
+
         const ioTag_t tag = motorConfig->ioTags[output];
         const timerHardware_t *timerHardware = timerAllocate(tag, OWNER_MOTOR, 0);
 
@@ -679,18 +661,25 @@ static serialPort_t *openEscSerial(const motorDevConfig_t *motorConfig, escSeria
 #ifdef USE_HAL_DRIVER
         escSerial->rxTimerHandle = timerFindTimerHandle(escSerial->rxTimerHardware->tim);
 #endif
+        // Workaround to ensure that the timerHandle is configured before use, timer will be reconfigured to a different frequency below
+        // this prevents a null-pointer dereference in __HAL_TIM_CLEAR_FLAG called by timerChClearCCFlag and similar accesses of timerHandle without the Instance being configured first.
+        timerConfigure(escSerial->rxTimerHardware, 0xffff, 1);
+
+        escSerial->txTimerHardware = timerAllocate(escSerialConfig()->ioTag, OWNER_MOTOR, 0);
+        if (escSerial->txTimerHardware == NULL) {
+            return NULL;
+        }
+
+#ifdef USE_HAL_DRIVER
+        escSerial->txTimerHandle = timerFindTimerHandle(escSerial->txTimerHardware->tim);
+#endif
+
+    	// Workaround to ensure that the timerHandle is configured before use, timer will be reconfigured to a different frequency below
+    	// this prevents a null-pointer dereference in __HAL_TIM_CLEAR_FLAG called by timerChClearCCFlag and similar accesses of timerHandle without the Instance being configured first.
+    	timerConfigure(escSerial->txTimerHardware, 0xffff, 1);
     }
 
     escSerial->mode = mode;
-    escSerial->txTimerHardware = timerAllocate(escSerialConfig()->ioTag, OWNER_MOTOR, 0);
-    if (escSerial->txTimerHardware == NULL) {
-        return NULL;
-    }
-
-#ifdef USE_HAL_DRIVER
-    escSerial->txTimerHandle = timerFindTimerHandle(escSerial->txTimerHardware->tim);
-#endif
-
     escSerial->port.vTable = escSerialVTable;
     escSerial->port.baudRate = baud;
     escSerial->port.mode = MODE_RXTX;
@@ -743,11 +732,15 @@ static serialPort_t *openEscSerial(const motorDevConfig_t *motorConfig, escSeria
                 if (tag != IO_TAG_NONE) {
                     const timerHardware_t *timerHardware = timerAllocate(tag, OWNER_MOTOR, 0);
                     if (timerHardware) {
+                        // Workaround to ensure that the timerHandle is configured before use, timer will be reconfigured to a different frequency below
+                        // this prevents a null-pointer dereference in __HAL_TIM_CLEAR_FLAG called by timerChClearCCFlag and similar accesses of timerHandle without the Instance being configured first.
+                        timerConfigure(timerHardware, 0xffff, 1);
                         escSerialOutputPortConfig(timerHardware);
                         escOutputs[escSerial->outputCount].io = pwmMotors[i].io;
                         if (timerHardware->output & TIMER_OUTPUT_INVERTED) {
                             escOutputs[escSerial->outputCount].inverted = 1;
                         }
+                        escSerial->txTimerHardware = timerHardware;
                         escSerial->outputCount++;
                     }
                 }
@@ -764,14 +757,12 @@ static serialPort_t *openEscSerial(const motorDevConfig_t *motorConfig, escSeria
     return &escSerial->port;
 }
 
-
 static void escSerialInputPortDeConfig(const timerHardware_t *timerHardwarePtr)
 {
     timerChClearCCFlag(timerHardwarePtr);
     timerChITConfig(timerHardwarePtr,DISABLE);
     escSerialGPIOConfig(timerHardwarePtr, IOCFG_IPU);
 }
-
 
 static void closeEscSerial(escSerialPortIndex_e portIndex, uint8_t mode)
 {
@@ -780,11 +771,11 @@ static void closeEscSerial(escSerialPortIndex_e portIndex, uint8_t mode)
     if (mode != PROTOCOL_KISSALL) {
         escSerialInputPortDeConfig(escSerial->rxTimerHardware);
         timerChConfigCallbacks(escSerial->rxTimerHardware,NULL,NULL);
-        TIM_DeInit(escSerial->rxTimerHardware->tim);
+        timerReset(escSerial->rxTimerHardware->tim);
     }
 
     timerChConfigCallbacks(escSerial->txTimerHardware,NULL,NULL);
-    TIM_DeInit(escSerial->txTimerHardware->tim);
+    timerReset(escSerial->txTimerHardware->tim);
 }
 
 static uint32_t escSerialTotalBytesWaiting(const serialPort_t *instance)
@@ -935,16 +926,13 @@ static bool processExitCommand(uint8_t c)
     return false;
 }
 
-
 bool escEnablePassthrough(serialPort_t *escPassthroughPort, const motorDevConfig_t *motorConfig, uint16_t escIndex, uint8_t mode)
 {
     bool exitEsc = false;
     uint8_t motor_output = escIndex;
     LED0_OFF;
     LED1_OFF;
-    //StopPwmAllMotors();
-    // XXX Review effect of motor refactor
-    //pwmDisableMotors();
+
     motorDisable();
     passPort = escPassthroughPort;
 
@@ -1004,7 +992,7 @@ bool escEnablePassthrough(serialPort_t *escPassthroughPort, const motorDevConfig
                     closeEscSerial(ESCSERIAL1, mode);
                     return true;
                 }
-                if (mode==PROTOCOL_BLHELI) {
+                if (mode==PROTOCOL_BLHELI || mode==PROTOCOL_KISS || mode==PROTOCOL_KISSALL) {
                     serialWrite(escPassthroughPort, ch); // blheli loopback
                 }
                 serialWrite(escPort, ch);

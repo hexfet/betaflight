@@ -24,7 +24,7 @@ README.pdf
 /tools/
 /build/
 # local changes only
-make/local.mk
+mk/local.mk
 
 # artefacts for VisualGDB (running in Visual Studio)
 mcu.mak
@@ -37,10 +37,13 @@ stm32.mak
 # ozone launch configurations
 /support/ozone
 
+# local scripts
+/support/scripts
+
 # artefacts for VS Code
 /.vscode/
 
-# artefacts for Visual Studio 
+# artefacts for Visual Studio
 /.vs
 
 # artefacts for CLion
@@ -53,5 +56,7 @@ ubuntu*.log
 # EEPROM image file (created by SITL)
 eeprom.bin
 
-# board scratch space used for automated build API, and developers
-/src/main/board
+# config used for building targets
+# changed to submodule
+#/src/config
+

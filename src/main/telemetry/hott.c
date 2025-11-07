@@ -59,7 +59,6 @@
 
 #include "platform.h"
 
-
 #ifdef USE_TELEMETRY_HOTT
 
 #include "build/build_config.h"
@@ -86,7 +85,7 @@
 #include "telemetry/hott.h"
 #include "telemetry/telemetry.h"
 
-#if defined (USE_HOTT_TEXTMODE) && defined (USE_CMS)
+#if defined(USE_HOTT_TEXTMODE) && defined(USE_CMS)
 #include "scheduler/scheduler.h"
 #include "io/displayport_hott.h"
 
@@ -129,7 +128,7 @@ static portSharing_e hottPortSharing;
 static HOTT_GPS_MSG_t hottGPSMessage;
 static HOTT_EAM_MSG_t hottEAMMessage;
 
-#if defined (USE_HOTT_TEXTMODE) && defined (USE_CMS)
+#if defined(USE_HOTT_TEXTMODE) && defined(USE_CMS)
 static hottTextModeMsg_t hottTextModeMessage;
 static bool textmodeIsAlive = false;
 static int32_t telemetryTaskPeriod = 0;
@@ -176,13 +175,13 @@ static void initialiseMessages(void)
 #ifdef USE_GPS
     initialiseGPSMessage(&hottGPSMessage, sizeof(hottGPSMessage));
 #endif
-#if defined (USE_HOTT_TEXTMODE) && defined (USE_CMS)
+#if defined(USE_HOTT_TEXTMODE) && defined(USE_CMS)
     initialiseTextmodeMessage(&hottTextModeMessage);
 #endif
 }
 
 #ifdef USE_GPS
-void addGPSCoordinates(HOTT_GPS_MSG_t *hottGPSMessage, int32_t latitude, int32_t longitude)
+STATIC_UNIT_TESTED void addGPSCoordinates(HOTT_GPS_MSG_t *hottGPSMessage, int32_t latitude, int32_t longitude)
 {
     int16_t deg = latitude / GPS_DEGREES_DIVIDER;
     int32_t sec = (latitude - (deg * GPS_DEGREES_DIVIDER)) * 6;
@@ -312,7 +311,7 @@ static inline void hottEAMUpdateClimbrate(HOTT_EAM_MSG_t *hottEAMMessage)
 }
 #endif
 
-void hottPrepareEAMResponse(HOTT_EAM_MSG_t *hottEAMMessage)
+static void hottPrepareEAMResponse(HOTT_EAM_MSG_t *hottEAMMessage)
 {
     // Reset alarms
     hottEAMMessage->warning_beeps = 0x0;
@@ -329,8 +328,6 @@ void hottPrepareEAMResponse(HOTT_EAM_MSG_t *hottEAMMessage)
 
 static void hottSerialWrite(uint8_t c)
 {
-    static uint8_t serialWrites = 0;
-    serialWrites++;
     serialWrite(hottPort, c);
 }
 
@@ -351,7 +348,7 @@ void initHoTTTelemetry(void)
 
     hottPortSharing = determinePortSharing(portConfig, FUNCTION_TELEMETRY_HOTT);
 
-#if defined (USE_HOTT_TEXTMODE) && defined (USE_CMS)
+#if defined(USE_HOTT_TEXTMODE) && defined(USE_CMS)
     hottDisplayportRegister();
 #endif
 
@@ -374,13 +371,13 @@ static void workAroundForHottTelemetryOnUsart(serialPort_t *instance, portMode_e
     if (telemetryConfig()->halfDuplex) {
         portOptions |= SERIAL_BIDIR;
     }
-
+    // TODO - identifier is set only after opening port
     hottPort = openSerialPort(instance->identifier, FUNCTION_TELEMETRY_HOTT, NULL, NULL, HOTT_BAUDRATE, mode, portOptions);
 }
 
 static bool hottIsUsingHardwareUART(void)
 {
-    return !(portConfig->identifier == SERIAL_PORT_SOFTSERIAL1 || portConfig->identifier == SERIAL_PORT_SOFTSERIAL2);
+    return serialType(portConfig->identifier) != SERIALTYPE_SOFTSERIAL;
 }
 
 static void hottConfigurePortForTX(void)
@@ -459,7 +456,7 @@ static void hottPrepareMessages(void)
 #endif
 }
 
-#if defined (USE_HOTT_TEXTMODE) && defined (USE_CMS)
+#if defined(USE_HOTT_TEXTMODE) && defined(USE_CMS)
 static void hottTextmodeStart(void)
 {
     // Increase menu speed
@@ -502,8 +499,7 @@ void hottTextmodeExit(void)
 void hottTextmodeWriteChar(uint8_t column, uint8_t row, char c)
 {
     if (column < HOTT_TEXTMODE_DISPLAY_COLUMNS && row < HOTT_TEXTMODE_DISPLAY_ROWS) {
-        if (hottTextModeMessage.txt[row][column] != c)
-            hottTextModeMessage.txt[row][column] = c;
+        hottTextModeMessage.txt[row][column] = c;
     }
 }
 
@@ -538,7 +534,7 @@ static void processHottTextModeRequest(const uint8_t cmd)
 
 static void processBinaryModeRequest(uint8_t address)
 {
-#if defined (USE_HOTT_TEXTMODE) && defined (USE_CMS)
+#if defined(USE_HOTT_TEXTMODE) && defined(USE_CMS)
     if (textmodeIsAlive) {
         hottTextmodeStop();
         textmodeIsAlive = false;
@@ -622,7 +618,7 @@ static void hottCheckSerialData(uint32_t currentMicros)
      */
         processBinaryModeRequest(address);
     }
-#if defined (USE_HOTT_TEXTMODE) && defined (USE_CMS)
+#if defined(USE_HOTT_TEXTMODE) && defined(USE_CMS)
     else if (requestId == HOTTV4_TEXT_MODE_REQUEST_ID) {
         processHottTextModeRequest(address);
     }

@@ -29,7 +29,7 @@
 
 #include "sensors/esc_sensor.h"
 
-#define OSD_NUM_TIMER_TYPES 4
+#define OSD_NUM_TIMER_TYPES 5
 extern const char * const osdTimerSourceNames[OSD_NUM_TIMER_TYPES];
 
 #define OSD_ELEMENT_BUFFER_LENGTH 32
@@ -60,7 +60,6 @@ extern const char * const osdTimerSourceNames[OSD_NUM_TIMER_TYPES];
 #define OSD_PROFILE_FLAG(x)  (1 << ((x) - 1 + OSD_PROFILE_BITS_POS))
 #define OSD_PROFILE_1_FLAG  OSD_PROFILE_FLAG(1)
 
-
 #ifdef USE_OSD_PROFILES
 #define VISIBLE(x) osdElementVisible(x)
 #define VISIBLE_IN_OSD_PROFILE(item, profile)    ((item) & ((OSD_PROFILE_1_FLAG) << ((profile)-1)))
@@ -69,18 +68,19 @@ extern const char * const osdTimerSourceNames[OSD_NUM_TIMER_TYPES];
 #define VISIBLE_IN_OSD_PROFILE(item, profile) VISIBLE(item)
 #endif
 
-
 // Character coordinate
 #define OSD_POSITION_BITS       5       // 5 bits gives a range 0-31
 #define OSD_POSITION_BIT_XHD    10      // extra bit used to extend X range in a backward compatible manner for HD displays
 #define OSD_POSITION_XHD_MASK   (1 << OSD_POSITION_BIT_XHD)
 #define OSD_POSITION_XY_MASK    ((1 << OSD_POSITION_BITS) - 1)
 #define OSD_TYPE_MASK           0xC000  // bits 14-15
-#define OSD_POS(x,y)  ((x & OSD_POSITION_XY_MASK) | ((x << (OSD_POSITION_BIT_XHD - OSD_POSITION_BITS)) & OSD_POSITION_XHD_MASK) | \
-                       ((y & OSD_POSITION_XY_MASK) << OSD_POSITION_BITS))
-#define OSD_X(x)      ((x & OSD_POSITION_XY_MASK) | ((x & OSD_POSITION_XHD_MASK) >> (OSD_POSITION_BIT_XHD - OSD_POSITION_BITS)))
-#define OSD_Y(x)      ((x >> OSD_POSITION_BITS) & OSD_POSITION_XY_MASK)
-#define OSD_TYPE(x)   ((x & OSD_TYPE_MASK) >> 14)
+#define OSD_POS(x, y)  (((x) & OSD_POSITION_XY_MASK)                    \
+                        | (((x) << (OSD_POSITION_BIT_XHD - OSD_POSITION_BITS)) & OSD_POSITION_XHD_MASK) \
+                        | (((y) & OSD_POSITION_XY_MASK) << OSD_POSITION_BITS)) \
+    /**/
+#define OSD_X(x)      (((x) & OSD_POSITION_XY_MASK) | (((x) & OSD_POSITION_XHD_MASK) >> (OSD_POSITION_BIT_XHD - OSD_POSITION_BITS)))
+#define OSD_Y(x)      (((x) >> OSD_POSITION_BITS) & OSD_POSITION_XY_MASK)
+#define OSD_TYPE(x)   (((x) & OSD_TYPE_MASK) >> 14)
 
 #define OSD_SD_COLS VIDEO_COLUMNS_SD
 #define OSD_SD_ROWS VIDEO_LINES_PAL
@@ -186,6 +186,15 @@ typedef enum {
     OSD_SYS_WARNINGS,
     OSD_SYS_VTX_TEMP,
     OSD_SYS_FAN_SPEED,
+    OSD_GPS_LAP_TIME_CURRENT,
+    OSD_GPS_LAP_TIME_PREVIOUS,
+    OSD_GPS_LAP_TIME_BEST3,
+    OSD_DEBUG2,
+    OSD_CUSTOM_MSG0,
+    OSD_CUSTOM_MSG1,
+    OSD_CUSTOM_MSG2,
+    OSD_CUSTOM_MSG3,
+    OSD_LIDAR_DIST,
     OSD_ITEM_COUNT // MUST BE LAST
 } osd_items_e;
 
@@ -227,6 +236,11 @@ typedef enum {
     OSD_STAT_MIN_RSSI_DBM,
     OSD_STAT_WATT_HOURS_DRAWN,
     OSD_STAT_MIN_RSNR,
+    OSD_STAT_BEST_3_CONSEC_LAPS,
+    OSD_STAT_BEST_LAP,
+    OSD_STAT_FULL_THROTTLE_TIME,
+    OSD_STAT_FULL_THROTTLE_COUNTER,
+    OSD_STAT_AVG_THROTTLE,
     OSD_STAT_COUNT // MUST BE LAST
 } osd_stats_e;
 
@@ -244,6 +258,7 @@ typedef enum {
     OSD_TIMER_SRC_TOTAL_ARMED,
     OSD_TIMER_SRC_LAST_ARMED,
     OSD_TIMER_SRC_ON_OR_ARMED,
+    OSD_TIMER_SRC_LAUNCH_TIME,
     OSD_TIMER_SRC_COUNT
 } osd_timer_source_e;
 
@@ -260,10 +275,9 @@ typedef enum {
     OSD_WARNING_BATTERY_WARNING,
     OSD_WARNING_BATTERY_CRITICAL,
     OSD_WARNING_VISUAL_BEEPER,
-    OSD_WARNING_CRASH_FLIP,
+    OSD_WARNING_CRASHFLIP,
     OSD_WARNING_ESC_FAIL,
     OSD_WARNING_CORE_TEMPERATURE,
-    OSD_WARNING_RC_SMOOTHING,
     OSD_WARNING_FAIL_SAFE,
     OSD_WARNING_LAUNCH_CONTROL,
     OSD_WARNING_GPS_RESCUE_UNAVAILABLE,
@@ -273,6 +287,8 @@ typedef enum {
     OSD_WARNING_RSSI_DBM,
     OSD_WARNING_OVER_CAP,
     OSD_WARNING_RSNR,
+    OSD_WARNING_LOAD,
+    OSD_WARNING_POSHOLD_FAILED,
     OSD_WARNING_COUNT // MUST BE LAST
 } osdWarningsFlags_e;
 
@@ -321,7 +337,7 @@ typedef struct osdConfig_s {
     uint16_t link_quality_alarm;
     int16_t rssi_dbm_alarm;
     int16_t rsnr_alarm;
-    uint8_t gps_sats_show_hdop;
+    uint8_t gps_sats_show_pdop;
     int8_t rcChannels[OSD_RCCHANNELS_COUNT];  // RC channel values to display, -1 if none
     uint8_t displayPortDevice;                // osdDisplayPortDevice_e
     uint16_t distance_alarm;
@@ -332,14 +348,21 @@ typedef struct osdConfig_s {
     uint16_t framerate_hz;
     uint8_t cms_background_type;              // For supporting devices, determines whether the CMS background is transparent or opaque
     uint8_t stat_show_cell_value;
-    #ifdef USE_CRAFTNAME_MSGS
+#ifdef USE_CRAFTNAME_MSGS
     uint8_t osd_craftname_msgs;               // Insert LQ/RSSI-dBm and warnings into CraftName
-    #endif //USE_CRAFTNAME_MSGS
+#endif //USE_CRAFTNAME_MSGS
     uint8_t aux_channel;
     uint16_t aux_scale;
     uint8_t aux_symbol;
     uint8_t canvas_cols;                      // Canvas dimensions for HD display
     uint8_t canvas_rows;
+#ifdef USE_OSD_QUICK_MENU
+    uint8_t osd_use_quick_menu;               // use QUICK menu YES/NO
+#endif // USE_OSD_QUICK_MENU
+#ifdef USE_SPEC_PREARM_SCREEN
+    uint8_t osd_show_spec_prearm;
+#endif // USE_SPEC_PREARM_SCREEN
+    displayPortSeverity_e arming_logo;        // font from which to display logo on arming
 } osdConfig_t;
 
 PG_DECLARE(osdConfig_t, osdConfig);
@@ -370,6 +393,8 @@ typedef struct statistic_s {
 
 extern timeUs_t resumeRefreshAt;
 extern timeUs_t osdFlyTime;
+extern timeUs_t osdLaunchTime;
+
 #if defined(USE_ACC)
 extern float osdGForce;
 #endif
